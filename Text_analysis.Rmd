@@ -1,0 +1,328 @@
+---
+title: "Text analysis"
+author: "ZIDAN Loubna"
+date: "13/02/2023"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+
+
+Text analysis:
+
+
+## 1. Preprocessing a Corpus
+
+### - Chargement des packages
+
+```{r}
+rm(list=ls())
+library('wordcloud')
+library(tm) # Framework for text mining
+library(RTextTools) # a machine learning package for text classification written in R
+library(qdapDictionaries)
+library(dplyr) # Data preparation and pipes $>$
+library(ggplot2) # for plotting word frequencies
+library(SnowballC) # for stemming
+```
+
+Le document soumis à notre analyse est un corpus de texte. Selon le site
+de l'Etudiant un corpus est un regroupement de documents qui sont réunis
+dans un but précis (points communs ou oppositions à déceler).
+
+C'est également un ensemble fini de textes choisi comme base d'une étude
+, c'est une collection d'articles d'actualités.
+
+Un corpus peut être aussi une collection articles d'actualité de Reuters
+ou les œuvres publiées de Shakespeare. Ces corpus sont donc composés
+d'articles , des histoires. Chaque unité est appelée "un document".
+
+Notre étude s'appuie sur une section du corpus du prince Machiavel. Ce
+texte est une monographie et est donc découpé en morceau, considéré
+comme un document.
+
+### 1.1 Les sources et les lectures du corpus
+
+Pour cette partie nous allons utiliser le package 'tm'.Il s'agit du
+text- mining . Le text-mining c'est l'ensemble des méthodes qui
+permettent d'analyser un texte avec des méthodes statistiques . Il
+existe deux méthodes de traitement de texte sur R . La méthode avec le
+package tm et la méthode du tidy text- mining
+
+D'abord, nous allons exécuter les deux commandes getsources () et
+getReaders()qui permettent d'afficher le type de sources et les readers
+
+```{r}
+getSources()
+getReaders()
+```
+
+Cette partie correspond aux chargement de la base csv . Il s'agit d'un
+document . Chaque ligne ets un document et des colonnes pour le texte et
+les métadonnées .
+
+```{r}
+docs.df <-read.csv("C:\\Users\\loubn\\Desktop\\Zidan_Zidan_Tamatekou_9_Code\\mach.csv", header=TRUE) #read in CSV file
+docs <- Corpus(VectorSource(docs.df$text))
+docs
+```
+
+Le corpus est donc composé de 188 documents. L'inspection des documents
+du corpus va se faire avec la commande inspect ()
+
+```{r}
+# see the 9th document
+inspect(docs[9])
+```
+
+Pour voir le text nous la commande a utilisé est `as.chracter`
+
+```{r}
+ # see content for 9th document
+as.character(docs[[9]])
+```
+
+La commande inspect() permet de sélectionner le document que l'on
+voudrait afficher. Par exemple inspect (docs[16]) permet d'afficher le
+16 ème doccument
+
+```{r}
+# See the 16th document
+inspect(docs[16])
+```
+
+### 1.2 Fonctions de prétraitement
+
+Les différentes applications d'analyses de texte ont presque les memes
+fonctionnements. Dans un premier temps l'application permet de :
+
+-Tokeniser le texte en unigrammes (ou bigrammes, ou trigrammes)
+
+-   Convertir tous les caractères en minuscules
+
+-Supprimer la ponctuation
+
+-   Supprimer les chiffres
+
+-   Suppression des mots d'arrêt, y compris les mots d'arrêt
+    personnalisés
+
+-   "Stemming" des mots, ou lemmitisation. Il existe plusieurs
+    algorithmes de alogrithmes. Porter est le plus populaire.
+
+7.  Création d'une matrice document-terme
+8.  Pondération des caractéristiques
+9.  Suppression des termes épars
+
+Le package Gettransformation permet de voir les transformations
+disponibles dans le package
+
+```{r}
+getTransformations()
+```
+
+La fonction 'tm_map()'permet d'appliquer une transformation à tous les
+documents du corpus
+
+```{r}
+docs <- tm_map(docs, content_transformer(tolower)) # convert all text to lower case
+as.character(docs[[9]])
+```
+
+De plus nous pouvons supprimer les mots manquants, les poctuations avec
+la fonction 'tm_map'
+
+```{r}
+# remove Puncturation
+docs <- tm_map(docs, removePunctuation) 
+as.character(docs[[9]])
+
+# remove Numbers
+docs <- tm_map(docs, removeNumbers) 
+as.character(docs[[9]])
+
+# remove common words
+docs <- tm_map(docs, removeWords, stopwords("english")) 
+stopwords("english") # check out what was removed
+as.character(docs[[9]])
+
+# remove own stop words
+docs <- tm_map(docs, removeWords, c("prince")) 
+as.character(docs[[9]])
+
+# strip white space
+docs <- tm_map(docs, stripWhitespace) 
+as.character(docs[[9]])
+
+# stem the document
+docs <- tm_map(docs, stemDocument) 
+as.character(docs[[9]])
+```
+
+### 1.3 Création d'une MNT
+
+Une matrice de termes (MNT) de documents est une matrice dont les lignes
+sont des documents et les colonnes des termes et un compte de la
+fréquence des mots comme cellules de la matrice.
+
+La fonction `DocumentTermMatrix()` permet de créer la matrice :
+
+```{r}
+dtm <- DocumentTermMatrix(docs)
+
+dtm
+```
+
+`tm` nous permet également de convertir un corpus en MNT en complétant
+les étapes de pré-traitement en une seule étape.
+
+```{r}
+dtm <- DocumentTermMatrix(docs,
+           control = list(stopwords = TRUE,
+                          tolower = TRUE,
+                          removeNumbers = TRUE,
+                          removePunctuation = TRUE,
+                          stemming=TRUE))
+```
+
+### 1.4 Pondération
+
+L'application de podération tf-idf est une étape importante de
+pré-traitement
+
+Tf-idf est une statistique numérique destinée à refléter l'importance
+d'un mot pour un document dans une collection ou un corpus
+
+La valeur tf-idf augmente proportionnellement au nombre de fois qu'un
+mot apparaît dans le document, mais est compensée par la fréquence du
+mot dans le corpus, qui permet d'ajuster le fait que certains mots
+apparaissent plus fréquemment en général
+
+```{r}
+dtm.weighted <- DocumentTermMatrix(docs,
+           control = list(weighting =function(x) weightTfIdf(x, normalize = TRUE),
+                          stopwords = TRUE,
+                          tolower = TRUE,
+                          removeNumbers = TRUE,
+                          removePunctuation = TRUE,
+                          stemming=TRUE))
+```
+
+La fonction inspect() peut etre utilisée avec d'autres commandes comme
+'dtm' et 'dtm.weighted' pour comparer les lignes et colonnes spécifiques
+.Ces fonctions sont utilisées pour comparer les 5 premières des fichiers
+
+```{r}
+inspect(dtm[1:5,1:5])
+inspect(dtm.weighted[1:5,1:5])
+```
+
+## 2. Exploration du DTM
+
+### 2.1 Dimensions
+
+Le DTM nous permet de voir la structure des documents et de déterminer
+le nombre total de document
+
+```{r}
+# how many documents? how many terms?
+dim(dtm)
+```
+
+### 2.2 Les fréquences
+
+Pour obtenir les fréquences des termes sous forme de vecteur,nous allons
+convertir la matrice des termes du document en une matrice en utilisant
+la commande 'colsums' pour additionner les colonnes .
+
+```{r}
+ # how many terms?
+freq <- colSums(as.matrix(dtm))
+length(freq)
+```
+
+La commande order() permet d'ordonner les fréquences
+
+```{r}
+# order
+ord <- order(freq)
+ord
+
+# Least frequent terms
+freq[head(ord)]
+
+# most frequent
+freq[tail(ord)]
+```
+
+### 2.3 Tracer les fréquences
+
+Le graphique ci dessous montre la fréquence des termes Pour les mots qui
+sont utilisés 5 ou 10 fois
+
+```{r}
+# frequency of frenquencies
+head(table(freq),9)
+tail(table(freq),9)
+
+# plot
+plot(table(freq))
+```
+
+Afin de montrer les termes les plus fréquents nous pouvons réorganiser
+les colonnes du DTM:
+
+```{r}
+dtm.ordered <- dtm[,order(freq, decreasing = T)]
+inspect(dtm.ordered[1:5,1:5])
+```
+
+### 2.4 Exploration de la fréquence des mots
+
+Pour explorer les mots et associations le package TM dispose de
+plusieurs commandes qui peuvent etre utiles:
+
+```{r}
+# Have a look at common words
+findFreqTerms(dtm, lowfreq=100) # words that appear at least 100 times
+
+# Which words correlate with "war"?
+findAssocs(dtm, "war", 0.3)
+```
+
+Le graphique des nuages de mot permet d' afficher les termes les plus
+communs
+
+```{r}
+# plot the most frequent words
+freq <- sort(colSums(as.matrix(dtm)),decreasing=TRUE)
+head(freq)
+
+# wordcoulds!
+library(wordcloud)
+set.seed(123)
+wordcloud(names(freq), freq, max.words=100, colors=brewer.pal(6,"Dark2"))
+```
+
+### 2.5 Supprimer les termes épars.
+
+Afin de supprimer les termes épars nous pouvons utiliser la fonction
+'removeSparseTerms'
+
+```{r}
+dtm.s <- removeSparseTerms(dtm,.9)
+dtm # 2365 terms
+dtm.s # 135 terms
+dtm.s.matrix <- as.matrix(dtm.s)
+```
+
+
+
+
+
+
+
